@@ -30,11 +30,13 @@ namespace IsoCardPDF
         {
             i++;
             j++;
+
             if (ws.Cells[i, j].Value2 != null)
-                return ws.Cells[i, j].Value2;
+                return ws.Cells[i, j].Value2.ToString();
             else
                 return "";
         }
+
 
         public _Excel.Style ReadCellFormat(int i, int j)
         {

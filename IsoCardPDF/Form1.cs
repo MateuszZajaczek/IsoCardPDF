@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Office.Interop.Excel;
 using _Excel = Microsoft.Office.Interop.Excel;
+
 namespace IsoCardPDF
 {
     public partial class Form1 : Form
@@ -28,55 +29,60 @@ namespace IsoCardPDF
             this.Name = "Form1";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.ResumeLayout(false);
-
         }
-
-
 
         private void Form1_Load(object sender, EventArgs e)
         {
             var sourceExcel = new Excel("Książka2.xlsx", 1);
             var targetExcel = new Excel("Zeszyt.xlsx", 1);
 
-            // Przepisanie wartości i formatu z komórki A1 z oryginalnego pliku do komórki B2 nowego pliku
-
-
-
             int targetColumn = 0;
-            string lastKey = null;
-            Dictionary<string, List<string>> keyValueDict = new Dictionary<string, List<string>>();
+            string lastOrderNumber = null;
+            Dictionary<string, List<string>> orderProfileDict = new Dictionary<string, List<string>>();
+            Dictionary<string, int> profileDimensionsDict = new Dictionary<string, int>();
 
-            for (int i = 0; i < 100; i++)
+            for (int i = 1; i < 100; i++)
             {
-                string orderNumber = sourceExcel.ReadCell(i, 0); // Klucz - numer zamówienia
+                string orderNumber = sourceExcel.ReadCell(i, 0); // Numer zamówienia
                 string profileName = sourceExcel.ReadCell(i, 1); // Nazwa profilu
                 string dimensions = sourceExcel.ReadCell(i, 2); // Wymiary
                 string quantity = sourceExcel.ReadCell(i, 3); // Ilość
 
                 if (!string.IsNullOrEmpty(orderNumber))
                 {
-                    // Jeśli klucz (numer zamówienia) się zmienił, zwiększamy targetColumn o 4 i zapamiętujemy nowy klucz
-                    if (orderNumber != lastKey)
+                    // Jeśli numer zamówienia się zmienił, zwiększamy targetColumn o 4 i resetujemy słowniki
+                    if (orderNumber != lastOrderNumber)
                     {
                         targetColumn += 4;
-                        lastKey = orderNumber;
-                        keyValueDict[lastKey] = new List<string>();
+                        lastOrderNumber = orderNumber;
+                        orderProfileDict.Clear();
+                        profileDimensionsDict.Clear();
                     }
 
-                    // Jeśli wartość (nazwa profilu) nie była wcześniej zapisana dla danego zamówienia, przepisujemy ją i zapamiętujemy
-                    if (!keyValueDict[lastKey].Contains(profileName))
+                    string key = $"{orderNumber}-{profileName}";
+                    if (!orderProfileDict.ContainsKey(key))
                     {
-                        targetExcel.WriteToCell(9 , targetColumn, profileName);
-                        targetExcel.WriteToCell(10 , targetColumn, dimensions);
-                        targetExcel.WriteToCell(11 , targetColumn, quantity);
-                        keyValueDict[lastKey].Add(profileName);
+                        // Jeśli to jest nowy profil w danym zamówieniu, zapisujemy numer zamówienia w odpowiedniej komórce
+                        targetExcel.WriteToCell(1, targetColumn + 2, orderNumber);
+                        orderProfileDict[key] = new List<string>();
                     }
+
+                    // Sprawdzamy, czy dla danego profilu w zamówieniu są dostępne dodatkowe wymiary
+                    if (!profileDimensionsDict.ContainsKey(key))
+                    {
+                        profileDimensionsDict[key] = 0;
+                    }
+
+                    int profileRow = profileDimensionsDict[key] * 4 + 9;
+
+                    targetExcel.WriteToCell(profileRow, targetColumn, profileName);
+                    targetExcel.WriteToCell(profileRow, targetColumn + 1, dimensions);
+                    targetExcel.WriteToCell(profileRow, targetColumn + 2, quantity);
+
+                    orderProfileDict[key].Add(dimensions);
+                    profileDimensionsDict[key]++;
                 }
             }
-
-
-
-
 
             // Zapisanie i zamknięcie nowego pliku
             targetExcel.Save();
@@ -84,8 +90,11 @@ namespace IsoCardPDF
 
             // Zamknięcie oryginalnego pliku
             sourceExcel.Close();
-
         }
+
+
+
+
 
         public void OpenFile()
         {
