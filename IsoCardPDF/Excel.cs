@@ -65,15 +65,41 @@ namespace IsoCardPDF
             ws.Cells[i, j].Style = style;
         }
 
+        public _Worksheet GetWorksheet(int index)
+        {
+            return wb.Worksheets[index];
+        }
+
+        public string GetColumnName(int columnNumber)
+        {
+            int dividend = columnNumber;
+            string columnName = String.Empty;
+            int modulo;
+
+            while (dividend > 0)
+            {
+                modulo = (dividend - 1) % 26;
+                columnName = Convert.ToChar(65 + modulo).ToString() + columnName;
+                dividend = (int)((dividend - modulo) / 26);
+            }
+
+            return columnName;
+        }
+
+
         public void Save()
         {
             wb.Save();
         }
 
+
+
         public void SaveAs(string path)
         {
             wb.SaveAs(path);
         }
+
+
 
         public void Close()
         {
