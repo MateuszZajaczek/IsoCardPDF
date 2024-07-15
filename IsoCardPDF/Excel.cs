@@ -48,7 +48,7 @@ namespace IsoCardPDF
         public void CreateNewFile()
         {
             this.wb = excel.Workbooks.Add(XlWBATemplate.xlWBATWorksheet);
-            this.ws = wb.Worksheets[1]; // Ustalamy, że będziemy pracować na pierwszym arkuszu
+            this.ws = wb.Worksheets[1]; // First Worksheet to work with.
         }
 
         public void WriteToCell(int i, int j, string s)
