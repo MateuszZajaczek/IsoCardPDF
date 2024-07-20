@@ -83,7 +83,7 @@ namespace IsoCardPDF
                 if (!string.IsNullOrEmpty(orderName) && orderName != currentOrderName)
                 {
                     currentOrderName = orderName;
-                    currentOrder = new Order(currentOrderName); // Use a unique identifier for the order
+                    currentOrder = new Order(currentOrderName); // Use orderName as the unique identifier for the order
                     orders.Add(currentOrder);
                 }
 
@@ -156,7 +156,7 @@ namespace IsoCardPDF
                 }
             }
             return false;
-
         }
+
     }
 }
