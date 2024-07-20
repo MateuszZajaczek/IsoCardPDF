@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Office.Interop.Excel;
 using _Excel = Microsoft.Office.Interop.Excel;
+using IsoCardPDF.Entities;
 
 
 namespace IsoCardPDF
@@ -37,97 +38,98 @@ namespace IsoCardPDF
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            
             string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
-            var sourceExcel = new Excel(System.IO.Path.Combine(baseDirectory, "Ksiazka.xlsx"), 1);
-            var targetExcel = new Excel(System.IO.Path.Combine(baseDirectory, "Zeszyt1.xlsx"), 1);
+            var sourceExcel = new Excel(System.IO.Path.Combine(baseDirectory, "Rozpiska.xlsx"), 1);
+            var targetExcel = new Excel(System.IO.Path.Combine(baseDirectory, "Zeszyt.xlsx"), 1);
+            string lastOrderDate = null;
+            string currentOrderName = null;
 
-            int targetColumn = -4;
-            string lastOrderNumber = null;
-            int currentRow = 9;
-
-            // Zakładając, że pierwsza karta ISO jest już stworzona w A1:D9
+            // Iso card template already created in Excel file. Cells A1:D26
             Range isoCardTemplate = targetExcel.GetWorksheet(1).Range["A1:D26"];
 
             _Excel._Worksheet sourceWorksheet = (_Excel._Worksheet)sourceExcel.GetWorksheet(1);
-            int lastRow = sourceWorksheet.UsedRange.Rows.Count;
-            string cell = sourceExcel.ReadCell(3, 2);
-            targetExcel.WriteToCell(1, 2, cell);
+            int lastRow = sourceWorksheet.UsedRange.Rows.Count;  // Get the number of rows currently in use in the source worksheet.
 
-            //for (int i = 1; i <= lastRow; i++)
-            //{
-            //    string orderNumber = sourceExcel.ReadCell(i, 0); // Numer zamówienia
-            //    string profileName = sourceExcel.ReadCell(i, 1); // Nazwa profilu
-            //    string dimensions = sourceExcel.ReadCell(i, 2); // Wymiary
-            //    string quantity = sourceExcel.ReadCell(i, 3); // Ilość
+            // Reading Excel data from breakdown.
+            List<Order> orders = new List<Order>();
+            Order currentOrder = null;
 
-            //    if (!string.IsNullOrEmpty(orderNumber))
-            //    {
-            //        // Jeśli numer zamówienia się zmienił, zwiększamy targetColumn o 4 i resetujemy wiersz
-            //        if (orderNumber != lastOrderNumber)
-            //        {
-            //            targetColumn += 4;
-            //            lastOrderNumber = orderNumber;
-            //            currentRow = 8;
+            for (int i = 0; i < lastRow; i++)
+            {
+                string orderName = sourceExcel.ReadCell(i, 0);
+                string profileTypeStr = sourceExcel.ReadCell(i, 1);
+                string dimensions = sourceExcel.ReadCell(i, 2);
+                string quantityStr = sourceExcel.ReadCell(i, 3);
+                string warning = sourceExcel.ReadCell(i, 4);
 
-            //            // Skopiuj kartę ISO na nową pozycję
-            //            isoCardTemplate.Copy(targetExcel.GetWorksheet(1).Range[targetExcel.GetColumnName(targetColumn + 1) + "1:" + targetExcel.GetColumnName(targetColumn + 4) + "9"]);
+                // Ensure quantityStr is a valid integer
+                int quantity = 0;
+                if (!string.IsNullOrWhiteSpace(quantityStr))
+                {
+                    if (!int.TryParse(quantityStr, out quantity))
+                    {
+                        Console.WriteLine($"Invalid quantity format at row {i + 1}: {quantityStr}");
+                        continue; // Skip this row if quantity is invalid
+                    }
+                }
 
-            //            // Scalamy zdefiniowane zakresy komórek
-            //            MergeCells(targetColumn + 1, 1, targetColumn + 4, 1);
-            //            MergeCells(targetColumn + 1, 2, targetColumn + 2, 2);
-            //            MergeCells(targetColumn + 3, 2, targetColumn + 4, 2);
-            //            MergeCells(targetColumn + 1, 3, targetColumn + 2, 3);
-            //            MergeCells(targetColumn + 3, 3, targetColumn + 4, 3);
-            //            MergeCells(targetColumn + 1, 4, targetColumn + 2, 4);
-            //            MergeCells(targetColumn + 3, 4, targetColumn + 4, 4);
-            //            MergeCells(targetColumn + 1, 5, targetColumn + 4, 5);
-            //            MergeCells(targetColumn + 1, 6, targetColumn + 4, 7);
-            //        }
+                if (IsDate(orderName) || IsNumericDate(orderName))
+                {
+                    lastOrderDate = orderName;
+                    continue;
+                }
 
+                if (!string.IsNullOrEmpty(orderName) && orderName != currentOrderName)
+                {
+                    currentOrderName = orderName;
+                    currentOrder = new Order(currentOrderName); // Use a unique identifier for the order
+                    orders.Add(currentOrder);
+                }
 
+                if (currentOrder == null)
+                {
+                    Console.WriteLine($"No current order to add position at row {i + 1}");
+                    continue; // Skip this row if there is no current order
+                }
 
-            //        targetExcel.WriteToCell(1, targetColumn + 2, orderNumber);  // Wypisuje numer zamówienia do odpowiedniej kolumny.
+                ProfileType profileType;
+                if (!EnumHelper.TryParseDescription(profileTypeStr, out profileType))
+                {
+                    Console.WriteLine($"Invalid profile type at row {i + 1}: {profileTypeStr}");
+                    continue; // Skip this row if profile type is invalid
+                }
 
+                Position position = string.IsNullOrEmpty(warning)
+                    ? new Position(profileType, dimensions, quantity)
+                    : new Position(profileType, dimensions, quantity, warning);
 
-            //    }
-            //    // Wypisuje wszystkie możliwe nazwy profili, ich wymiary, oraz ilości.
+                currentOrder.AddPosition(position);
+            }
 
-            //    targetExcel.WriteToCell(currentRow, targetColumn, profileName);
-            //    targetExcel.WriteToCell(currentRow, targetColumn + 1, dimensions);
-            //    targetExcel.WriteToCell(currentRow, targetColumn + 2, quantity);
-            //    currentRow++;
-            //}
-            
-            // Zapisanie nowego pliku
-            
-            string savePath =  (System.IO.Path.Combine(baseDirectory, "BelkiNowe.xlsx"));
+            // Display order details
+            foreach (var order in orders)
+            {
+                Console.WriteLine($"Order ID: {order.OrderId}");
+                foreach (var pos in order.Positions)
+                {
+                    Console.WriteLine($"Profile Type: {pos.ProfileType}, Dimension: {pos.Dimension}, Quantity: {pos.Quantity}, Warning: {pos.Warning}");
+                }
+            }
+
+            // Save new file
+            string savePath = System.IO.Path.Combine(baseDirectory, "BelkiNowe.xlsx");
             try
             {
                 targetExcel.SaveAs(savePath);
-                // Zamknięcie nowego pliku
                 targetExcel.Close();
-
-                // Zamknięcie oryginalnego pliku
                 sourceExcel.Close();
             }
-            
             catch
             {
                 Console.WriteLine("Plik nie został zapisany.");
             }
-
-            
-
-            void MergeCells(int startColumn, int startRow, int endColumn, int endRow)
-            {
-                var rangeToMerge = targetExcel.GetWorksheet(1).Range[targetExcel.GetColumnName(startColumn) + startRow.ToString() + ":" + targetExcel.GetColumnName(endColumn) + endRow.ToString()];
-                rangeToMerge.Merge();
-            }
         }
-
-
 
         public void OpenFile()
         {
@@ -135,14 +137,26 @@ namespace IsoCardPDF
             MessageBox.Show(excel.ReadCell(0, 0));
         }
 
-
-
-        public void WriteData()
+        private bool IsDate(string input)
         {
-            Excel excel = new Excel(@"Test.xlsx", 1);
-            excel.WriteToCell(0, 0, "Test2");
-            excel.Save();
-            excel.SaveAs(@"Test2.xlsx");
+            DateTime dateValue;
+            return DateTime.TryParse(input, out dateValue);
+        }
+
+        private bool IsNumericDate(string input)
+        {
+            double number;
+            if (double.TryParse(input, out number))
+            {
+                // Excel dates start from January 1, 1900 (serial number 1).
+                // Considering dates until now, for safety we assume 1900-01-01 (1) to some future limit (e.g., 99999).
+                if (number >= 1 && number <= 99999)
+                {
+                    return true;
+                }
+            }
+            return false;
+
         }
     }
 }
